@@ -8,6 +8,13 @@
       "notificantion_channel": "notification_channel_1"
     },
     {
+      "Monitor_Name": "Index B check for failure",
+      "Index": "index_b",
+      "Text2Scan_in_Message": "failure",
+      "Time2Scan": "10m",
+      "notificantion_channel": "notification_channel_2"
+    },
+    {
       "Monitor_Name": "Index C scan for critical",
       "Index": "index_c",
       "Text2Scan_in_Message": "critical",

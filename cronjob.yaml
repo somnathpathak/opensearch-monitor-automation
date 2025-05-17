@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: opensearch-monitor-cron
+  namespace: default
+  labels:
+    app: opensearch-monitor
+spec:
+  schedule: "0 0 * * *"
+  # schedule: "*/2 * * * *" # For local testing
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: monitor-job
+              image: somnathpathak/opensearch-monitor:latest
+              imagePullPolicy: Always
+              env:
+                - name: OPENSEARCH_HOST
+                  value: "my-first-cluster.opensearch.svc.cluster.local"
+                - name: OPENSEARCH_PORT
+                  value: "9200"
+                - name: MONITORS_URL
+                  value: "https://raw.githubusercontent.com/somnathpathak/opensearch-monitor-automation/master/input/monitors.json"
+                - name: OPENSEARCH_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: opensearch-creds
+                      key: OPENSEARCH_USER
+                - name: OPENSEARCH_PASS
+                  valueFrom:
+                    secretKeyRef:
+                      name: opensearch-creds
+                      key: OPENSEARCH_PASS
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "250m"
+                  memory: "256Mi"
+          restartPolicy: OnFailure

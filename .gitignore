@@ -1,0 +1,12 @@
+# Python virtual environment
+.venv/
+
+# VS Code settings
+.vscode/
+
+# macOS system file
+.DS_Store
+
+# Windows system files
+Thumbs.db
+desktop.ini

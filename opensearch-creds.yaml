@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: opensearch-creds
+  namespace: default
+type: Opaque
+stringData:
+  OPENSEARCH_USER: admin
+  OPENSEARCH_PASS: admin
+
+# NOTE:
+# This static secret definition is included for assignment demonstration purposes only.
+# In a real-world setup, it's recommended to manage these credentials using secure solutions
+# like External Secrets Operator (ESO) or cloud-native secret managers (AWS Secrets Manager, IBM Secrets Manager, etc.)
+# to avoid hardcoding sensitive data in version-controlled manifests.

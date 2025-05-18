@@ -8,7 +8,7 @@ DEFAULT_LOCAL_PATH = os.path.join(os.path.dirname(__file__), '..', 'input', 'mon
 def load_monitors():
     remote_url = os.getenv("MONITORS_URL")
     if remote_url:
-        print(f"[DEBUG] Fetching monitor config from remote URL: {remote_url}")
+        print(f"[INFO] Fetching monitor config from remote URL: {remote_url}")
         try:
             response = requests.get(remote_url, timeout=10)
             response.raise_for_status()
@@ -17,7 +17,7 @@ def load_monitors():
             print(f"[ERROR] Failed to fetch remote monitors.json: {e}")
             return []
     else:
-        print(f"[DEBUG] Loading monitor config from local file: {DEFAULT_LOCAL_PATH}")
+        print(f"[INFO] Loading monitor config from local file: {DEFAULT_LOCAL_PATH}")
         try:
             with open(DEFAULT_LOCAL_PATH, 'r') as f:
                 data = json.load(f)
@@ -26,7 +26,7 @@ def load_monitors():
             return []
 
     monitors = data.get("Monitors", [])
-    print(f"[DEBUG] Loaded {len(monitors)} monitor(s) from configuration")
+    print(f"[INFO] Loaded {len(monitors)} monitor(s) from configuration")
     return monitors
 
 
@@ -35,7 +35,7 @@ def connect_to_opensearch():
     port = int(os.environ.get("OPENSEARCH_PORT", 9200))
     auth = (os.environ.get("OPENSEARCH_USER", "admin"), os.environ.get("OPENSEARCH_PASS", "admin"))
 
-    print(f"[DEBUG] Connecting to OpenSearch at {host}:{port}...")
+    print(f"[INFO] Connecting to OpenSearch at {host}:{port}")
     client = OpenSearch(
         hosts=[{"host": host, "port": port}],
         http_auth=auth,
@@ -63,7 +63,7 @@ def resolve_channel_id(client, channel_name):
     for ch in channels:
         if ch.get("name") == channel_name:
             return ch.get("config_id")
-    print(f"[WARNING] No notification channel found for name: {channel_name}")
+    print(f"[WARNING] Notification channel not found: {channel_name}")
     return None
 
 
@@ -74,7 +74,7 @@ def get_existing_monitors(client):
         for hit in response.get("hits", {}).get("hits", []):
             monitor = hit.get("_source", {})
             monitors.append({"id": hit["_id"], "name": monitor.get("name")})
-        print(f"[DEBUG] Found {len(monitors)} existing monitor(s) in OpenSearch")
+        print(f"[INFO] Found {len(monitors)} existing monitor(s) in OpenSearch")
     except Exception as e:
         print(f"[ERROR] Error fetching existing monitors: {e}")
     return monitors
@@ -83,7 +83,7 @@ def get_existing_monitors(client):
 def delete_monitor(client, monitor_id):
     try:
         client.alerting.delete_monitor(monitor_id=monitor_id)
-        print(f"Deleted monitor ID: {monitor_id}")
+        print(f"[INFO] Deleted monitor ID: {monitor_id}")
     except Exception as e:
         print(f"[ERROR] Failed to delete monitor ID '{monitor_id}': {e}")
 
@@ -95,13 +95,11 @@ def create_monitor(client, monitor_def):
     time_window = monitor_def["Time2Scan"]
     channel_name = monitor_def["notification_channel"]
 
-    # Resolve Slack channel ID
     channel_id = resolve_channel_id(client, channel_name)
     if not channel_id:
         print(f"[ERROR] Notification channel '{channel_name}' not found. Skipping monitor '{monitor_name}'")
         return
 
-    # Construct monitor definition
     monitor_body = {
         "type": "monitor",
         "name": monitor_name,
@@ -166,7 +164,7 @@ def create_monitor(client, monitor_def):
 
     try:
         client.alerting.create_monitor(body=monitor_body)
-        print(f"Created monitor: {monitor_name}")
+        print(f"[INFO] Created monitor: {monitor_name}")
     except Exception as e:
         print(f"[ERROR] Failed to create monitor '{monitor_name}': {e}")
 
@@ -178,53 +176,38 @@ def sync_monitors(client, desired_monitors):
 
     for monitor_name in desired_map:
         if monitor_name not in existing_map:
-            print(f"[DEBUG] Creating monitor: {monitor_name}")
+            print(f"[INFO] Creating monitor: {monitor_name}")
             create_monitor(client, desired_map[monitor_name])
 
     for monitor_name in existing_map:
         if monitor_name not in desired_map:
-            print(f"[DEBUG] Deleting orphaned monitor: {monitor_name}")
+            print(f"[INFO] Deleting orphaned monitor: {monitor_name}")
             delete_monitor(client, existing_map[monitor_name])
 
 
 def main():
-    print("Debug: Environment Variables")
-    print(f"MONITORS_URL     = {os.environ.get('MONITORS_URL')}")
-    print(f"OPENSEARCH_HOST  = {os.environ.get('OPENSEARCH_HOST')}")
-    print(f"OPENSEARCH_PORT  = {os.environ.get('OPENSEARCH_PORT')}")
-    print(f"OPENSEARCH_USER  = {os.environ.get('OPENSEARCH_USER')}")
-    print(f"OPENSEARCH_PASS  = {os.environ.get('OPENSEARCH_PASS')}")
-    print("-" * 50)
-
     monitors = load_monitors()
     if not monitors:
-        print("No monitors found in input file.")
+        print("[INFO] No monitors found in input file.")
         return
 
-    print("Parsed Monitors:")
+    print("[INFO] Parsed Monitors:")
     for m in monitors:
-        print(f"- Name: {m['Monitor_Name']}")
-        print(f"  Index: {m['Index']}")
-        print(f"  Keyword: {m['Text2Scan_in_Message']}")
-        print(f"  Time Window: {m['Time2Scan']}")
-        print(f"  Notification Channel: {m['notification_channel']}")
-        print("")
+        print(f"  - {m['Monitor_Name']} (Index: {m['Index']}, Keyword: {m['Text2Scan_in_Message']}, Time: {m['Time2Scan']}, Channel: {m['notification_channel']})")
 
     client = connect_to_opensearch()
     info = client.info()
-    print(f"Connected to OpenSearch {info['version']['number']} @ {info['cluster_name']}")
+    print(f"[INFO] Connected to OpenSearch {info['version']['number']} @ {info['cluster_name']}")
 
-    print("\nSyncing monitors...\n")
+    print("[INFO] Syncing monitors...")
     sync_monitors(client, monitors)
 
     response = client.alerting.search_monitor({"query": {"match_all": {}}})
     monitors = response.get("hits", {}).get("hits", [])
+    print(f"[INFO] Total monitors after sync: {len(monitors)}")
     for hit in monitors:
-        monitor_id = hit.get("_id")
         monitor = hit.get("_source", {})
-        print(f"Monitor ID: {monitor_id}")
-        print(f"Name      : {monitor.get('name')}")
-        print("---")
+        print(f"  - {monitor.get('name')}")
 
 
 if __name__ == "__main__":
